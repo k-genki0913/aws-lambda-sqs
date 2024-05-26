@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 検証
+
+Globals:
+  Function:
+    Timeout: 10
+
+Resources:
+  SqsProducer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sqs-producer
+      CodeUri: sqs-producer
+      Handler: app.lambdaHandler
+      Runtime: nodejs20.x
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt SampleSqs.QueueName
+      Environment:
+        Variables:
+          SQSQueueUrl: !Ref SampleSqs
+
+  SqsConsumer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sqs-consumer
+      CodeUri: sqs-consumer
+      Handler: app.lambdaHandler
+      Runtime: nodejs20.x
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt SampleSqs.QueueName
+      Events:
+        SampleSqs:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SampleSqs.Arn
+            BatchSize: 2
+
+  SampleSqs:
+    Type: AWS::SQS::Queue
+    Properties:
+      ContentBasedDeduplication: true
+      FifoQueue: true
+      QueueName: SampleSqs.fifo
+      VisibilityTimeout: 600
