@@ -16,10 +16,10 @@ Resources:
       Runtime: nodejs20.x
       Policies:
         - SQSSendMessagePolicy:
-            QueueName: !GetAtt SampleSqs.QueueName
+            QueueName: !GetAtt FifoQueue.QueueName
       Environment:
         Variables:
-          SQSQueueUrl: !Ref SampleSqs
+          SQSQueueUrl: !Ref FifoQueue
 
   SqsConsumer:
     Type: AWS::Serverless::Function
@@ -28,20 +28,32 @@ Resources:
       CodeUri: sqs-consumer
       Handler: app.lambdaHandler
       Runtime: nodejs20.x
-      Policies:
-        - SQSPollerPolicy:
-            QueueName: !GetAtt SampleSqs.QueueName
       Events:
         SampleSqs:
           Type: SQS
           Properties:
-            Queue: !GetAtt SampleSqs.Arn
-            BatchSize: 2
+            Enabled: true
+            Queue: !GetAtt FifoQueue.Arn
+            BatchSize: 5
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
 
-  SampleSqs:
+  FifoQueue:
     Type: AWS::SQS::Queue
     Properties:
       ContentBasedDeduplication: true
       FifoQueue: true
-      QueueName: SampleSqs.fifo
-      VisibilityTimeout: 600
+      QueueName: FifoQueue.fifo
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt FifoDLQueue.Arn
+        maxReceiveCount: 2
+      VisibilityTimeout: 20
+      ReceiveMessageWaitTimeSeconds: 5
+    DependsOn: FifoDLQueue
+  FifoDLQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      ContentBasedDeduplication: false
+      FifoQueue: true
+      QueueName: FifoDLQueue.fifo
+      VisibilityTimeout: 30
